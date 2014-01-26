@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,8 +12,8 @@ using Microsoft.Xna.Framework.Media;
 
 namespace Simon
 {
-    public enum SimonColors {GREEN, RED, YELLOW, BLUE, NONE};
-    public enum Turn { PLAYER, COMPUTER, PLAYBACK, GAMEOVER};
+    public enum SimonColors { GREEN, RED, YELLOW, BLUE, NONE };
+    public enum Turn { PLAYER, COMPUTER, PLAYBACK, GAMEOVER };
 
     /// <summary>
     /// This is the main type for your game
@@ -25,14 +26,17 @@ namespace Simon
         Texture2D simon;
         Texture2D cursor;
         Random rand;
-        float patternTime;
-        Turn turn = Turn.PLAYER;
+        float patternTime = 0;
+        Turn turn = Turn.COMPUTER;
+        
 
         List<SimonColors> moves;   // Hint
         int PlayBackIndex = 0;  // Index into moves list
         int PlayerTurnIndex = 0; // When it's the player's turn, you can use this to store what move the player is on
 
         SimonColors Lit = SimonColors.NONE;  // Which button is currently lit up?
+
+        bool MouseReleased = true;
 
         public Game1()
         {
@@ -95,64 +99,103 @@ namespace Simon
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Update(GameTime gameTime)
         {
-            patternTime += (float)gameTime.ElapsedGameTime.TotalMilliseconds;
-
             // Allows the game to exit
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
                 this.Exit();
 
             // TODO: Add your update logic here
 
+            patternTime += (float)gameTime.ElapsedGameTime.TotalMilliseconds;
+
             if (turn == Turn.COMPUTER)
             {
-                // TODO: After 1 second add a random move
+                Lit = SimonColors.NONE;
 
-                if(patternTime == 1000)
+                if (patternTime > 1000)
                 {
                     moves.Add((SimonColors)rand.Next(0, 4));
                     turn = Turn.PLAYBACK;
-                    PlayBackIndex = 0;
-                }
 
-                // moves.Add((SimonColors)rand.Next(0, 4));
-                // turn = Turn.PLAYBACK;
-                // PlayBackIndex = 0;
+                    PlayBackIndex = 0;
+                    patternTime = 0;
+                }
             }
+
             else if (turn == Turn.PLAYBACK)
             {
-                // TODO: Play one move every 750ms.. 
-                // DO NOT PLAY BACK ALL MOVES AT ONCE
-
-                if(PlayBackIndex == moves.Count) 
+                if (patternTime > 750)
                 {
-                    turn = Turn.PLAYER;
-                    PlayerTurnIndex = 0;
+
+                    if (patternTime > 750 && PlayBackIndex != moves.Count)
+                    {
+                        Lit = moves[PlayBackIndex];
+
+                        PlayBackIndex++;
+                    }
+
+                    else
+                    {
+                        turn = Turn.PLAYER;
+                        Lit = SimonColors.NONE;
+
+                        PlayBackIndex = 0;
+                    }
+
+                    patternTime = 0;
                 }
             }
+
+
             else if (turn == Turn.PLAYER)
             {
                 MouseState ms = Mouse.GetState();
 
-                if (ms.LeftButton == ButtonState.Pressed)
+                if (ms.LeftButton == ButtonState.Pressed && MouseReleased)
                 {
-                    // Check to see if green button is hit.. add code to make sure the mouse button is depressed so you
-                    // don't respond to this buttonpress twice in a row
+                    MouseReleased = false;
+
                     Lit = getPressed();
 
                     if (Lit != SimonColors.NONE)
                     {
-                        // do something here!  Maybe see if Lit was the correct button to press?
-
                         SoundManager.PlaySimonSound(Lit);
+
+                        if (Lit == moves[PlayerTurnIndex])
+                        {
+                            PlayerTurnIndex++;
+
+                            if (PlayerTurnIndex == moves.Count)
+                            {
+                                PlayerTurnIndex = 0;
+
+                                turn = Turn.COMPUTER;
+                            }
+                        }
+
+                        else
+                        {
+                            turn = Turn.GAMEOVER;
+                            SoundManager.PlayGameOver();
+
+                            PlayerTurnIndex = 0;
+                        }
                     }
                 }
+
+                else if (ms.LeftButton == ButtonState.Released)
+                    MouseReleased = true;
+
             }
+
+
             else if (turn == Turn.GAMEOVER)
             {
                 SoundManager.PlayGameOver();
 
                 moves.Clear();
+
                 turn = Turn.COMPUTER;
+
                 Lit = SimonColors.NONE;
             }
 
@@ -170,7 +213,7 @@ namespace Simon
             Vector2 point = new Vector2(ms.X, ms.Y);
             uint[] PixelData = new uint[texture.Width * texture.Height];
 
-            texture.GetData<uint>(0, new Rectangle(0,0,texture.Width,texture.Height), PixelData, 0, texture.Width*texture.Height);
+            texture.GetData<uint>(0, new Rectangle(0, 0, texture.Width, texture.Height), PixelData, 0, texture.Width * texture.Height);
 
             Vector2 point_translated = point - new Vector2(destination.X, destination.Y);
 
@@ -187,30 +230,24 @@ namespace Simon
 
         public SimonColors getPressed()
         {
+            
+            // GREEN
             if (isPressed(simon, new Rectangle(46, 40, 238, 243), new Rectangle(0, 0, 238, 243)))
-            {
                 return SimonColors.GREEN;
-            }
 
             // RED
             if (isPressed(simon, new Rectangle(46 + 277, 40, 238, 243), new Rectangle(277, 0, 238, 243)))
-            {
                 return SimonColors.RED;
-            }
 
 
             // YELLOW
             if (isPressed(simon, new Rectangle(46, 40 + 276, 238, 243), new Rectangle(0, 276, 238, 243)))
-            {
                 return SimonColors.YELLOW;
-            }
 
 
             // BLUE
             if (isPressed(simon, new Rectangle(46 + 277, 40 + 276, 238, 243), new Rectangle(277, 276, 238, 243)))
-            {
                 return SimonColors.BLUE;
-            }
 
             return SimonColors.NONE;
         }
@@ -228,32 +265,23 @@ namespace Simon
 
             spriteBatch.Begin();
 
-                spriteBatch.Draw(board, new Rectangle(0, 0, 800, 600), Color.White);
+            spriteBatch.Draw(board, new Rectangle(0, 0, 800, 600), Color.White);
 
-                // Maybe we shouldn't draw all the highlights?   Just the "Lit" one perhaps?   But here's the code if you want to..
 
-                // Draw green hightlight (note that this shouldn't ALWAYS been drawn)
-
-                if(Lit == SimonColors.GREEN)
+            if (Lit == SimonColors.GREEN)
                 spriteBatch.Draw(simon, new Rectangle(46, 40, 238, 243), new Rectangle(0, 0, 238, 243), Color.White);
 
-                // Draw red hightlight (note that this shouldn't ALWAYS been drawn)
-
-                if (Lit == SimonColors.RED)
+            if (Lit == SimonColors.RED)
                 spriteBatch.Draw(simon, new Rectangle(46 + 277, 40, 238, 243), new Rectangle(277, 0, 238, 243), Color.White);
 
-                //Draw yellow hightlight (note that this shouldn't ALWAYS been drawn)
-
-                if (Lit == SimonColors.YELLOW)
+            if (Lit == SimonColors.YELLOW)
                 spriteBatch.Draw(simon, new Rectangle(46, 40 + 276, 238, 243), new Rectangle(0, 276, 238, 243), Color.White);
 
-                // Draw blue hightlight (note that this shouldn't ALWAYS been drawn)
-
-                if (Lit == SimonColors.BLUE)
+            if (Lit == SimonColors.BLUE)
                 spriteBatch.Draw(simon, new Rectangle(46 + 277, 40 + 276, 238, 243), new Rectangle(277, 276, 238, 243), Color.White);
 
-                // Draw cursor
-                spriteBatch.Draw(cursor, new Vector2(ms.X, ms.Y), Color.White);
+            // Draw cursor
+            spriteBatch.Draw(cursor, new Vector2(ms.X, ms.Y), Color.White);
 
             spriteBatch.End();
 
